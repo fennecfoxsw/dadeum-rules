@@ -13,6 +13,7 @@
 // 제목 및 조항 넘버링 관련 카운터 및 상태
 #let chapter-counter = counter("constitution-chapter")
 #let section-counter = counter("constitution-section")
+#let addendum-counter = counter("constitution-addendum")
 #let article-counter = counter("constitution-article")
 #let branch-article-counter = counter("constitution-branch-article")
 #let clause-counter = counter("constitution-clause")
@@ -333,6 +334,7 @@
 // 2단계 제목: 부칙
 #let addendum(title) = [
   #article-counter.update(0)
+  #addendum-counter.step()
   #is-addendum.update(true)
   #heading(level: 2, outlined: false, numbering: none)[#title] <rule-chapter>
 ]
@@ -365,7 +367,8 @@
 
   #context {
     let addendum-mode = is-addendum.get()
-    let prefix = if addendum-mode { "rule-addendum-article-" } else { "rule-article-" }
+    let addendum-num = addendum-counter.get().first()
+    let prefix = if addendum-mode { "rule-addendum-" + str(addendum-num) + "-article-" } else { "rule-article-" }
     let label-string = prefix + art-part-val
 
     if m != none {
@@ -473,7 +476,8 @@
 
   #context {
     let addendum-mode = is-addendum.get()
-    let prefix = if addendum-mode { "rule-addendum-article-" } else { "rule-article-" }
+    let addendum-num = addendum-counter.get().first()
+    let prefix = if addendum-mode { "rule-addendum-" + str(addendum-num) + "-article-" } else { "rule-article-" }
     let art-part = current-article-label-part.get()
     let label-string = prefix + art-part + "-clause-" + str(n).replace("~", "to")
 
@@ -555,7 +559,8 @@
 
   #context {
     let addendum-mode = is-addendum.get()
-    let prefix = if addendum-mode { "rule-addendum-article-" } else { "rule-article-" }
+    let addendum-num = addendum-counter.get().first()
+    let prefix = if addendum-mode { "rule-addendum-" + str(addendum-num) + "-article-" } else { "rule-article-" }
     let art-part = current-article-label-part.get()
     let cls-n = clause-counter.get().first()
     let label-string = prefix + art-part + "-clause-" + str(cls-n) + "-numitem-" + str(n).replace("~", "to")
@@ -651,7 +656,8 @@
 
   #context {
     let addendum-mode = is-addendum.get()
-    let prefix = if addendum-mode { "rule-addendum-article-" } else { "rule-article-" }
+    let addendum-num = addendum-counter.get().first()
+    let prefix = if addendum-mode { "rule-addendum-" + str(addendum-num) + "-article-" } else { "rule-article-" }
     let art-part = current-article-label-part.get()
     let cls-n = clause-counter.get().first()
     let num-n = numitem-counter.get().first()
@@ -754,6 +760,7 @@
   let current-cls = str(counter("constitution-clause").get().first())
   let current-itm = str(counter("constitution-numitem").get().first())
   let current-is-addendum = is-addendum.get()
+  let current-addendum = counter("constitution-addendum").get().first()
 
   let art-num = if art-match != none { art-match.captures.at(0) } else { none }
   let brn-num = if art-match != none { art-match.captures.at(1) } else { none }
@@ -830,7 +837,7 @@
       art-num
     }
     let use-addendum-prefix = is-citation-addendum or (not explicit-art and current-is-addendum)
-    let prefix = if use-addendum-prefix { "rule-addendum-article-" } else { "rule-article-" }
+    let prefix = if use-addendum-prefix { "rule-addendum-" + str(current-addendum) + "-article-" } else { "rule-article-" }
 
     let target-string = prefix + label-art-part
     if cls-num != none {
@@ -1067,12 +1074,7 @@
       fill: (col, row) => if row == 0 { rgb("#f9f9fa") } else { none },
       align: (col, row) => if row == 0 { center + horizon } else { left + top },
       ..if not no-inset { (inset: (x: 10pt, y: 12pt)) },
-      table.header(
-        [*현행*],
-        [*개정안*],
-        ..if not hide-remark { ([*비고*],) } else { () },
-        repeat: false
-      ),
+      table.header([*현행*], [*개정안*], [*비고*], repeat: false),
 
       ..final-rows.flatten()
     )
