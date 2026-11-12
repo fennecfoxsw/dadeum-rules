@@ -63,7 +63,7 @@
     numbering-align = page-numbering.at("alignment", default: center)
   }
   if type(numbering-content) == str {
-    final-content = [#final-content]
+    numbering-content = [#numbering-content]
   }
   g-page-numbering.update((content: numbering-content, alignment: numbering-align))
 
