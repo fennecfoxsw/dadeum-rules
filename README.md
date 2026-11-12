@@ -212,8 +212,6 @@ Typst 웹앱은 프로젝트 zip 파일 등을 업로드하거나 (Typst Pro로 
 
 이는 부칙 내에서 조를 인용하는 경우 대부분 본칙이고, 항⋅호⋅목에서만 인용하는 경우 대부분 부칙이라는 경험 법칙에 의거합니다. 그러나 법령 입안 심사 기준에는 부칙에서 부칙 내 다른 조항을 인용할 때에는 '부칙 제○조' 등과 같이 부칙임을 표시하여 본칙 규정을 인용할 때와 구별하라고 적혀 있으므로 이 원칙을 따를 것을 권장합니다.
 
-부칙이 여러 개인 규정에서 본칙에서 부칙을 인용하는 이례적인 경우엔 무조건 최신 부칙에서 인용 대상을 찾고, 최신 부칙에 해당 규정이 없으면 오류가 발생합니다. 꼭 본칙에서 부칙을 인용해야겠다면 `at` 함수가 아니라 `at-m`을 통해 인용해야 합니다.
-
 ### 신·구조문대비표
 
 `side-by-side-table((...))`함수에 `compare-row([...], [...], remark: [...])`함수를 쌓아 만들 수 있습니다. 대략 아래와 같은 형식입니다.
@@ -375,7 +373,7 @@ Typst의 문법을 그대로 사용할 수 있습니다. Typst로 문서를 작�
   default-font-type: "serif",
   margin: (top: 30mm, bottom: 30mm, left: 30mm, right: 30mm, footer: 15mm),
   compact-margin: (top: 15mm, bottom: 15mm, left: 20mm, right: 20mm, footer: 3mm),
-  cover-margin: (top: 30mm, bottom: 30mm, left: 30mm, right: 30mm, footer: 15mm),
+  cover-margin: none, // 지정하지 않으면 margin과 같음
   page-numbering: (content: [-- 1 --], alignment: center),
   link-color: none,
   debug: false,

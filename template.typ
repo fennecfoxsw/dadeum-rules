@@ -25,6 +25,25 @@
 #let current-article-label-part = state("current-article-label-part", "1")
 #let rule-marker-registry = state("rule-marker-registry", (:))
 
+// 여백 딕셔너리를 검사하고 정리합니다.
+// 키 순서는 자유이며, footer를 생략하면 해당 여백의 top 절반을 사용합니다.
+#let _normalize-margin(m, name) = {
+  let required = ("top", "bottom", "left", "right")
+  assert(
+    type(m) == dictionary
+      and required.all(k => k in m)
+      and m.keys().all(k => k in required or k == "footer"),
+    message: name + "의 형식이 잘못되었습니다. (top, bottom, left, right, footer(선택)를 지정해야 합니다.)",
+  )
+  (
+    top: m.top,
+    bottom: m.bottom,
+    left: m.left,
+    right: m.right,
+    footer: m.at("footer", default: m.top / 2),
+  )
+}
+
 // 규정 문서 양식을 사용하도록 설정합니다.
 #let rule-document(
   document-title: none,
@@ -33,7 +52,7 @@
   default-font-type: "serif",
   margin: (top: 30mm, bottom: 30mm, left: 30mm, right: 30mm, footer: 15mm),
   compact-margin: (top: 15mm, bottom: 15mm, left: 20mm, right: 20mm, footer: 3mm),
-  cover-margin: (top: 30mm, bottom: 30mm, left: 30mm, right: 30mm, footer: 15mm),
+  cover-margin: none,
   page-numbering: (content: [-- 1 --], alignment: center),
   link-color: none,
   debug: false,
@@ -42,19 +61,14 @@
   if document-title != none { set document(title: document-title) }
 
   assert(type(debug) == bool, message: "debug는 true 혹은 false여야 합니다.")
-  assert(margin.keys() == ("top", "bottom", "left", "right", "footer") or margin.keys() == ("top", "bottom", "left", "right"), message: "margin의 형식이 잘못되었습니다.")
-  assert(compact-margin.keys() == ("top", "bottom", "left", "right", "footer") or compact-margin.keys() == ("top", "bottom", "left", "right"), message: "compact-margin의 형식이 잘못되었습니다.")
-  assert(compact-margin.keys() == ("top", "bottom", "left", "right", "footer") or compact-margin.keys() == ("top", "bottom", "left", "right"), message: "compact-margin의 형식이 잘못되었습니다.")
   assert(type(page-numbering) == str or type(page-numbering) == content or type(page-numbering) == dictionary, message: "page-numbering은 큰 따옴표로 감싼 문자열이거나 대괄호로 감싼 내용이거나 딕셔너리여야 합니다.")
 
-  margin.insert("footer", margin.at("footer", default: margin.top / 2))
-  compact-margin.insert("footer", compact-margin.at("footer", default: margin.top / 2))
-  
   g-is-debug.update(debug)
   g-serif-font.update(serif)
   g-san-serif-font.update(san-serif)
-  g-margin.update(margin)
-  g-compact-margin.update(compact-margin)
+  g-margin.update(_normalize-margin(margin, "margin"))
+  g-compact-margin.update(_normalize-margin(compact-margin, "compact-margin"))
+  g-cover-margin.update(_normalize-margin(if cover-margin == none { margin } else { cover-margin }, "cover-margin"))
 
   let numbering-content = page-numbering
   let numbering-align = center
@@ -162,7 +176,7 @@
 
 // 표지 페이지: 표지, 목차에 사용됩니다.
 #let cover-page(body) = context {
-  let margin = g-margin.get()
+  let margin = g-cover-margin.get()
   let _ = margin.remove("footer")
   
   set par(
@@ -332,12 +346,27 @@
 ]
 
 // 2단계 제목: 부칙
-#let addendum(title) = [
-  #article-counter.update(0)
-  #addendum-counter.step()
-  #is-addendum.update(true)
-  #heading(level: 2, outlined: false, numbering: none)[#title] <rule-chapter>
-]
+// hint: 이 부칙을 인용할 때 쓰는 문자열입니다. 공포번호, 개정일, 버전명, 개정 차수 등 그 부칙을
+//       가리키는 어떤 문자열이든 되며, 여러 개라면 배열로 넘깁니다. 결과물에는 표시되지 않고
+//       디버그 모드에서만 제목 아래에 보입니다. 결과물에 보여야 한다면 title에 직접 작성하세요.
+#let addendum(title, hint: none) = {
+  let hints = if hint == none { () } else if type(hint) == str { (hint,) } else { hint }
+  assert(
+    type(hints) == array and hints.all(h => type(h) == str and h.trim() != ""),
+    message: "addendum의 hint는 비어 있지 않은 문자열이거나 문자열의 배열이어야 합니다.",
+  )
+  [
+    #article-counter.update(0)
+    #addendum-counter.step()
+    #is-addendum.update(true)
+    #metadata((hints: hints)) <rule-addendum-meta>
+    #heading(level: 2, outlined: false, numbering: none)[#title] <rule-chapter>
+    #context if g-is-debug.get() {
+      let shown = if hints.len() == 0 { "없음" } else { hints.map(h => "\"" + h + "\"").join(", ") }
+      align(center, text(fill: purple)[힌트: #shown])
+    }
+  ]
+}
 
 // 3단계 제목: 절
 #let section-title(title) = [
@@ -739,19 +768,85 @@
 // 인용
 // ─────────────────────────────────────────────────────────────
 
+// 콘텐츠를 일반 문자열로 펼칩니다.
+#let _plain-text(c) = {
+  if type(c) == str { c }
+  else if c.has("text") { c.text }
+  else if c.has("children") { c.children.map(_plain-text).fold("", (a, b) => a + b) }
+  else if c.has("body") { _plain-text(c.body) }
+  else if c.func() == [ ].func() { " " }
+  else { "" }
+}
+
+// 부칙 목록(각 부칙의 힌트 배열)을 오류 메시지용 문자열로 만듭니다.
+#let _describe-addenda(addenda) = (
+  addenda
+    .enumerate()
+    .map(((i, hints)) => {
+      let shown = if hints.len() == 0 { "(힌트 없음)" } else { hints.map(h => "\"" + h + "\"").join(", ") }
+      "  " + str(i + 1) + "번째 부칙: " + shown
+    })
+    .join("\n")
+)
+
+// 인용문에 포함된 부칙 힌트를 찾습니다.
+// 반환값 nums: 일치한 부칙 순번들, hints: 일치한 힌트 문자열들.
+// 더 긴 힌트 안에 포함된 짧은 힌트(예: "11차" 안의 "1차")는 일치로 보지 않습니다.
+#let _match-addendum-hints(text-val, addenda) = {
+  let found = ()
+  for (i, hints) in addenda.enumerate() {
+    for h in hints {
+      if text-val.contains(h) { found.push((num: i + 1, hint: h)) }
+    }
+  }
+  let kept = ()
+  for f in found.sorted(key: f => -f.hint.len()) {
+    if not kept.any(k => k.hint.contains(f.hint)) { kept.push(f) }
+  }
+  (nums: kept.map(f => f.num).dedup(), hints: kept.map(f => f.hint))
+}
+
+// 라벨 문자열에서 부칙 순번을 꺼냅니다. 본칙이면 0입니다.
+#let _addendum-of(label-str) = {
+  let m = label-str.match(regex("^rule-addendum-(\d+)-"))
+  if m == none { 0 } else { int(m.captures.first()) }
+}
+
 // 이 규정 문서의 특정 조문을 인용합니다.
 #let at(body) = context {
-  let text-val = if type(body) == str { body } else {
-    body.fields().at("text", default: "")
-  }
+  let text-val = _plain-text(body).trim()
   if text-val == "" { return body }
 
-  let is-citation-addendum = text-val.match(regex("부\s*칙")) != none
+  // 오류: 디버그 모드에서는 문서에 빨간 글씨로 표시하고, 아니면 컴파일을 멈춥니다.
+  let fail(msg) = {
+    if g-is-debug.get() { [#body#text(fill: red, weight: "extrabold")[(#msg)]] } else { panic(msg) }
+  }
 
-  let art-match = text-val.match(regex("제\s*(\d+)\s*조(?:\s*의\s*(\d+))?"))
-  let cls-match = text-val.match(regex("제\s*(\d+)\s*항"))
-  let itm-match = text-val.match(regex("제\s*(\d+)\s*호"))
-  let sub-match = text-val.match(
+  let is-citation-addendum = text-val.match(regex("부\s*칙")) != none
+  let addenda = query(<rule-addendum-meta>).map(m => m.value.hints)
+
+  // 부칙 힌트를 찾고, 조·항·호·목 번호를 읽기 전에 인용문에서 지웁니다.
+  // (예: 힌트 "제2호"가 호 번호로 읽히지 않게 합니다.)
+  let hinted-addendum = none
+  let parse-text = text-val
+  if is-citation-addendum {
+    let r = _match-addendum-hints(text-val, addenda)
+    if r.nums.len() > 1 {
+      return fail(
+        "인용문이 여러 부칙의 힌트와 일치합니다.\n입력: \"" + text-val + "\"\n일치한 힌트: "
+          + r.hints.map(h => "\"" + h + "\"").join(", ") + "\n후보:\n" + _describe-addenda(addenda),
+      )
+    }
+    if r.nums.len() == 1 {
+      hinted-addendum = r.nums.first()
+      for h in r.hints { parse-text = parse-text.replace(h, " ") }
+    }
+  }
+
+  let art-match = parse-text.match(regex("제\s*(\d+)\s*조(?:\s*의\s*(\d+))?"))
+  let cls-match = parse-text.match(regex("제\s*(\d+)\s*항"))
+  let itm-match = parse-text.match(regex("제\s*(\d+)\s*호"))
+  let sub-match = parse-text.match(
     regex("제?\s*(?:\()?([가나다라마바사아자차카타파하]+)(?:\))?\s*목"),
   )
 
@@ -837,7 +932,27 @@
       art-num
     }
     let use-addendum-prefix = is-citation-addendum or (not explicit-art and current-is-addendum)
-    let prefix = if use-addendum-prefix { "rule-addendum-" + str(current-addendum) + "-article-" } else { "rule-article-" }
+    let prefix = "rule-article-"
+    if use-addendum-prefix {
+      // 힌트가 있으면 그 부칙, 없으면 부칙 안에서는 자기 부칙, 본칙에서는 하나뿐인 부칙을 가리킵니다.
+      let addendum-num = if hinted-addendum != none { hinted-addendum } else if current-is-addendum {
+        current-addendum
+      } else if addenda.len() == 1 { 1 } else { none }
+      if addendum-num == none {
+        return fail(
+          if addenda.len() == 0 {
+            "인용할 부칙이 없습니다.\n입력: \"" + text-val + "\""
+          } else {
+            (
+              "문서 내 부칙이 여러 개이므로 어느 부칙을 인용하는지 알 수 없습니다. 인용문에 아래 힌트 중 하나를 포함하거나 at-m을 통한 인용으로 작성하세요."
+                + " 힌트가 없는 부칙은 addendum의 hint로 지정할 수 있습니다.\n입력: \"" + text-val + "\"\n후보:\n"
+                + _describe-addenda(addenda)
+            )
+          },
+        )
+      }
+      prefix = "rule-addendum-" + str(addendum-num) + "-article-"
+    }
 
     let target-string = prefix + label-art-part
     if cls-num != none {
@@ -867,7 +982,7 @@
         target-label = loc
       }
     }
-    link(target-label)[#text-val]
+    link(target-label)[#body]
     if g-is-debug.get() == true {
       link(target-label)[#text(fill: blue)[(#repr(label(target-string)))]]
       if query(label(target-string)).len() == 0 [#text(fill: red, weight: "extrabold")[해당 위치를 찾을 수 없음.]]
@@ -901,8 +1016,8 @@
     let diff-found = false
     let text-parts = ()
 
-    let target-is-addendum = target.label-str.starts-with("rule-addendum-")
-    if target-is-addendum != base-context.is-addendum { diff-found = true }
+    // 본칙과 부칙, 서로 다른 부칙은 다른 위치로 봅니다.
+    if _addendum-of(target.label-str) != base-context.addendum { diff-found = true }
 
     // 조 비교
     if target.art-val != base-context.art { diff-found = true }
@@ -937,7 +1052,7 @@
     cls: if caller-cls-num != 0 { str(caller-cls-num) } else { none },
     itm: if caller-itm-num != 0 { str(caller-itm-num) } else { none },
     sub: if caller-sub-num != 0 { str(caller-sub-num) } else { none },
-    is-addendum: is-addendum.get(),
+    addendum: if is-addendum.get() { addendum-counter.get().first() } else { 0 },
   )
 
   // 디버그 모드용 누락 마커 표기 헬퍼
@@ -975,7 +1090,7 @@
         cls: start-target.cls-val,
         itm: start-target.itm-val,
         sub: start-target.sub-val,
-        is-addendum: start-target.label-str.starts-with("rule-addendum-"),
+        addendum: _addendum-of(start-target.label-str),
       )
       let end-text = compute-parts(end-target, start-as-ctx).join("")
 
@@ -1012,7 +1127,7 @@
           cls: t.obj.cls-val,
           itm: t.obj.itm-val,
           sub: t.obj.sub-val,
-          is-addendum: t.obj.label-str.starts-with("rule-addendum-"),
+          addendum: _addendum-of(t.obj.label-str),
         )
       }
 
@@ -1074,7 +1189,12 @@
       fill: (col, row) => if row == 0 { rgb("#f9f9fa") } else { none },
       align: (col, row) => if row == 0 { center + horizon } else { left + top },
       ..if not no-inset { (inset: (x: 10pt, y: 12pt)) },
-      table.header([*현행*], [*개정안*], [*비고*], repeat: false),
+      table.header(
+        [*현행*],
+        [*개정안*],
+        ..if not hide-remark { ([*비고*],) } else { () },
+        repeat: false
+      ),
 
       ..final-rows.flatten()
     )
