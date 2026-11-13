@@ -1,0 +1,16 @@
+[package]
+name = "dadeum-rules"
+version = "0.1.0"
+entrypoint = "lib.typ"
+authors = ["FennecFoxSW <@fennecfoxsw>"]
+license = "MIT"
+description = "Korean regulations with articles, clauses and automatic citations."
+compiler = "0.15.0"
+categories = ["office"]
+keywords = ["korean", "regulation", "bylaws"]
+exclude = ["/assets/", "/example/", "/.vscode/"]
+
+[template]
+path = "template"
+entrypoint = "main.typ"
+thumbnail = "thumbnail.png"

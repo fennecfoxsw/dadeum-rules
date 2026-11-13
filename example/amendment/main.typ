@@ -1,4 +1,5 @@
-#import "/template.typ": *
+#import "@local/dadeum-rules:0.1.0": *
+#import preset.basic: *
 
 #show: rule-document.with(document-title: [○○단체 정관 일부개정안])
 
