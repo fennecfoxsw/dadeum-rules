@@ -18,7 +18,7 @@
   cite-prefix: "제",
   unit: "장",
   heading-level: 2,
-  style: (size: 1.33em, weight: "bold", align: center, above: 1.18em, below: 2.36em),
+  style: (size: 1.33em, weight: "bold", align: center, above: 3.09em, below: 2.36em),
   render: renders.division-heading,
 )
 
@@ -30,7 +30,7 @@
   cite-prefix: "제",
   unit: "절",
   heading-level: 3,
-  style: (size: 1.17em, weight: "bold", align: left, above: 1.18em, below: 1.89em),
+  style: (size: 1.17em, weight: "bold", align: left, above: 2.36em, below: 1.89em),
   render: renders.division-heading,
 )
 
