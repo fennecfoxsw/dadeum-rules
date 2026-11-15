@@ -14,7 +14,7 @@
 
 // 현재 위치와 자동 번호. zone: 0이면 본칙, n이면 n번째 부칙.
 // _pos.update(p => ...) 형태로만 갱신해야 합니다.
-#let _pos = state("rule-pos", (zone: 0, path: (), stack: (), counts: (), branches: (:), addenda: 0))
+#let _pos = state("rule-pos", (zone: 0, path: (), stack: (), counts: (), branches: (:), addenda: 0, saved: ()))
 
 // 계층(편·장·절 등) 번호 카운터
 #let _division-counter = counter("rule-division")
@@ -583,6 +583,9 @@
       branches.insert(str(d), b)
       num = str(counts.at(d, default: 0)) + "-" + str(b)
       counts = counts.slice(0, calc.min(d + 1, counts.len()))
+    } else {
+      counts = counts.slice(0, calc.min(d + 1, counts.len()))
+      branches = branches.pairs().filter(((k, v)) => int(k) <= d).to-dict()
     }
     let info = _number-info(args, num, who)
     let path = p.path.slice(0, calc.min(d, p.path.len()))
@@ -1130,9 +1133,17 @@
 // ─────────────────────────────────────────────────────────────
 
 // 표 모드: 이 안의 조항은 render-table로 그립니다.
+// 표 안에서 바뀐 자동 번호는 표를 나올 때 되돌려, 본문 번호에 영향을 주지 않게 합니다.
 #let _table-scope(body) = {
-  set raw(tab-size: _table-flag)
-  body
+  _pos.update(p => (..p, saved: p.saved + ((counts: p.counts, branches: p.branches),)))
+  {
+    set raw(tab-size: _table-flag)
+    body
+  }
+  _pos.update(p => {
+    let last = p.saved.last()
+    (..p, counts: last.counts, branches: last.branches, saved: p.saved.slice(0, -1))
+  })
 }
 
 #let side-by-side-table(
